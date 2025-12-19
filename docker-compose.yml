@@ -23,7 +23,11 @@ services:
 
     # optional but useful
     healthcheck:
+
+      disable: true
+
       test: ["CMD", "wget", "-qO-", "http://localhost:9621/health"]
       interval: 30s
       timeout: 5s
       retries: 5
+      
