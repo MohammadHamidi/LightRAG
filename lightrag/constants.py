@@ -24,19 +24,7 @@ DEFAULT_SUMMARY_LENGTH_RECOMMENDED = 600
 # Maximum token size sent to LLM for summary
 DEFAULT_SUMMARY_CONTEXT_SIZE = 12000
 # Default entities to extract if ENTITY_TYPES is not specified in .env
-DEFAULT_ENTITY_TYPES = [
-    "Person",
-    "Creature",
-    "Organization",
-    "Location",
-    "Event",
-    "Concept",
-    "Method",
-    "Content",
-    "Data",
-    "Artifact",
-    "NaturalObject",
-]
+DEFAULT_ENTITY_TYPES = ["Action","ActionType","Actor","Audience","Context","SystemTag","Difficulty","Verse","Concept","MediaAsset","Program","Document","URL"]
 
 # Separator for: description, source_id and relation-key fields(Can not be changed after data inserted)
 GRAPH_FIELD_SEP = "<SEP>"
