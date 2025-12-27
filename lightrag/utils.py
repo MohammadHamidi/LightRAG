@@ -192,6 +192,11 @@ def get_env_value(
     if value is None:
         return default
 
+    # Strip whitespace and treat empty strings as unset
+    value = value.strip()
+    if not value:
+        return default
+
     # Handle special case for "None" string
     if special_none and value == "None":
         return None
