@@ -7,14 +7,14 @@ services:
     image: ghcr.io/hkuds/lightrag:latest
 
     ports:
-      - "9621:9621"
+      - "9622:9622"
 
     env_file:
       - .env
 
-    # Override PORT to ensure internal server uses 9621
+    # Override PORT to ensure internal server uses 9622
     environment:
-      - PORT=9621
+      - PORT=9622
 
     volumes:
       # Fixed paths - removed /data prefix
@@ -28,7 +28,7 @@ services:
       - "host.docker.internal:host-gateway"
 
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:9621/health"]
+      test: ["CMD", "wget", "-qO-", "http://localhost:9622/health"]
       interval: 30s
       timeout: 5s
       retries: 5
