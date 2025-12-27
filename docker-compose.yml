@@ -6,7 +6,7 @@ services:
     image: ghcr.io/hkuds/lightrag:latest
 
     ports:
-      - "${PORT:-9621}:9621"
+      - "${PORT:-9622}:9622"
 
     env_file:
       - .env
@@ -26,7 +26,7 @@ services:
 
       disable: true
 
-      test: ["CMD", "wget", "-qO-", "http://localhost:9621/health"]
+      test: ["CMD", "wget", "-qO-", "http://localhost:9622/health"]
       interval: 30s
       timeout: 5s
       retries: 5
