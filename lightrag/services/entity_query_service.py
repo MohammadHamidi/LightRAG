@@ -56,7 +56,7 @@ class EntityQueryService:
         Returns:
             Entity data dictionary or None if not found
         """
-        entity_data = await self.full_entities.get_by_id(entity_name)
+        entity_data = await self.graph.get_node(entity_name)
 
         if entity_data is None:
             logger.warning(f"Entity '{entity_name}' not found")
