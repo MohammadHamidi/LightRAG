@@ -1083,6 +1083,9 @@ def create_app(args):
         logger.error(f"Failed to initialize LightRAG: {e}")
         raise
 
+    # Store RAG instance in app.state for dependency injection
+    app.state.rag = rag
+
     # Add routes
     app.include_router(
         create_document_routes(

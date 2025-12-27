@@ -4,13 +4,28 @@ This module contains all graph-related routes for the LightRAG API.
 
 from typing import Optional, Dict, Any
 import traceback
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, Query, HTTPException, Request
 from pydantic import BaseModel, Field
 
+from lightrag import LightRAG
 from lightrag.utils import logger
 from ..utils_api import get_combined_auth_dependency
 
 router = APIRouter(tags=["graph"])
+
+
+def get_lightrag_instance(request: Request) -> LightRAG:
+    """
+    Dependency function to get the LightRAG instance from app.state.
+    
+    This allows other routers to inject the LightRAG instance via FastAPI's Depends.
+    """
+    if not hasattr(request.app.state, "rag"):
+        raise HTTPException(
+            status_code=500,
+            detail="LightRAG instance not initialized. Please check server configuration."
+        )
+    return request.app.state.rag
 
 
 class EntityUpdateRequest(BaseModel):
