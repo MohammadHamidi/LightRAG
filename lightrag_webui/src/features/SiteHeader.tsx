@@ -43,8 +43,14 @@ function TabsNavigation() {
         <NavigationTab value="knowledge-graph" currentTab={currentTab}>
           {t('header.knowledgeGraph')}
         </NavigationTab>
+        <NavigationTab value="entities" currentTab={currentTab}>
+          {t('header.entities', 'Entities')}
+        </NavigationTab>
         <NavigationTab value="retrieval" currentTab={currentTab}>
           {t('header.retrieval')}
+        </NavigationTab>
+        <NavigationTab value="templates" currentTab={currentTab}>
+          {t('header.templates', 'Templates')}
         </NavigationTab>
         <NavigationTab value="api" currentTab={currentTab}>
           {t('header.api')}

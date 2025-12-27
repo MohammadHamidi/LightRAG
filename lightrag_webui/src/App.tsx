@@ -15,6 +15,8 @@ import GraphViewer from '@/features/GraphViewer'
 import DocumentManager from '@/features/DocumentManager'
 import RetrievalTesting from '@/features/RetrievalTesting'
 import ApiSite from '@/features/ApiSite'
+import EntityBrowser from '@/features/EntityBrowser'
+import TemplateManager from '@/features/TemplateManager'
 
 import { Tabs, TabsContent } from '@/components/ui/Tabs'
 
@@ -210,8 +212,14 @@ function App() {
                 <TabsContent value="knowledge-graph" className="absolute top-0 right-0 bottom-0 left-0 overflow-hidden">
                   <GraphViewer />
                 </TabsContent>
+                <TabsContent value="entities" className="absolute top-0 right-0 bottom-0 left-0 overflow-hidden">
+                  <EntityBrowser />
+                </TabsContent>
                 <TabsContent value="retrieval" className="absolute top-0 right-0 bottom-0 left-0 overflow-hidden">
                   <RetrievalTesting />
+                </TabsContent>
+                <TabsContent value="templates" className="absolute top-0 right-0 bottom-0 left-0 overflow-hidden">
+                  <TemplateManager />
                 </TabsContent>
                 <TabsContent value="api" className="absolute top-0 right-0 bottom-0 left-0 overflow-hidden">
                   <ApiSite />

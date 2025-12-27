@@ -815,3 +815,338 @@ export const getDocumentStatusCounts = async (): Promise<StatusCountsResponse> =
   const response = await axiosInstance.get('/documents/status_counts')
   return response.data
 }
+
+// ========================================
+// Entity Query API Types & Functions
+// ========================================
+
+export type EntitySummary = {
+  entity_id: string
+  entity_type: string
+  description: string
+  description_full_length: number
+  source_count: number
+  created_at?: number
+}
+
+export type EntityListResponse = {
+  entities: EntitySummary[]
+  total_count: number
+  returned_count: number
+  offset: number
+  limit: number
+  has_more: boolean
+}
+
+export type EntitySearchResult = {
+  entity_id: string
+  entity_type: string
+  description: string
+  relevance_score: number
+  source_count: number
+}
+
+export type EntityDetail = {
+  entity_id: string
+  entity_type?: string
+  description?: string
+  source_ids?: string[]
+  file_paths?: string[]
+  timestamp?: number
+}
+
+export type Relationship = {
+  source: string
+  target: string
+  direction: string
+  description?: string
+  keywords?: string
+  weight: number
+  timestamp?: number
+}
+
+export type RelationshipsResponse = {
+  incoming: Relationship[]
+  outgoing: Relationship[]
+  total_count: number
+}
+
+export type DocumentChunk = {
+  chunk_id: string
+  content?: string
+  file_path?: string
+  doc_id?: string
+  chunk_order_index?: number
+  tokens?: number
+  timestamp?: number
+}
+
+export type EntityStatistics = {
+  total_source_chunks?: number
+  unique_files?: number
+  total_relationships?: number
+  incoming_relationships?: number
+  outgoing_relationships?: number
+  avg_relationship_weight?: number
+  returned_chunks?: number
+  unique_documents?: number
+}
+
+export type EntityFullResponse = {
+  entity_name: string
+  entity?: Record<string, any>
+  relationships?: RelationshipsResponse
+  documents?: DocumentChunk[]
+  statistics?: EntityStatistics
+  related_entities?: string[]
+}
+
+/**
+ * List all entities with optional filtering and pagination
+ */
+export const listEntities = async (params: {
+  entity_types?: string
+  name_pattern?: string
+  limit?: number
+  offset?: number
+  sort_by?: string
+  sort_order?: string
+}): Promise<EntityListResponse> => {
+  const queryParams = new URLSearchParams()
+  if (params.entity_types) queryParams.append('entity_types', params.entity_types)
+  if (params.name_pattern) queryParams.append('name_pattern', params.name_pattern)
+  if (params.limit) queryParams.append('limit', params.limit.toString())
+  if (params.offset) queryParams.append('offset', params.offset.toString())
+  if (params.sort_by) queryParams.append('sort_by', params.sort_by)
+  if (params.sort_order) queryParams.append('sort_order', params.sort_order)
+
+  const response = await axiosInstance.get(`/entities/list?${queryParams.toString()}`)
+  return response.data
+}
+
+/**
+ * Search entities by name with relevance scoring
+ */
+export const searchEntities = async (params: {
+  q: string
+  entity_types?: string
+  limit?: number
+}): Promise<EntitySearchResult[]> => {
+  const queryParams = new URLSearchParams()
+  queryParams.append('q', params.q)
+  if (params.entity_types) queryParams.append('entity_types', params.entity_types)
+  if (params.limit) queryParams.append('limit', params.limit.toString())
+
+  const response = await axiosInstance.get(`/entities/search?${queryParams.toString()}`)
+  return response.data
+}
+
+/**
+ * Get entity type summary (counts by type)
+ */
+export const getEntityTypesSummary = async (): Promise<Record<string, number>> => {
+  const response = await axiosInstance.get('/entities/types')
+  return response.data
+}
+
+/**
+ * Get detailed information about a specific entity
+ */
+export const getEntityDetails = async (entityName: string): Promise<EntityDetail> => {
+  const response = await axiosInstance.get(`/entities/${encodeURIComponent(entityName)}`)
+  return response.data
+}
+
+/**
+ * Get entity relationships with filtering
+ */
+export const getEntityRelationships = async (
+  entityName: string,
+  params?: {
+    direction?: string
+    relation_types?: string
+    related_entity_types?: string
+    min_weight?: number
+    max_weight?: number
+    keywords?: string
+    file_paths?: string
+    date_from?: number
+    date_to?: number
+    limit?: number
+    offset?: number
+  }
+): Promise<RelationshipsResponse> => {
+  const queryParams = new URLSearchParams()
+  if (params?.direction) queryParams.append('direction', params.direction)
+  if (params?.relation_types) queryParams.append('relation_types', params.relation_types)
+  if (params?.related_entity_types) queryParams.append('related_entity_types', params.related_entity_types)
+  if (params?.min_weight !== undefined) queryParams.append('min_weight', params.min_weight.toString())
+  if (params?.max_weight !== undefined) queryParams.append('max_weight', params.max_weight.toString())
+  if (params?.keywords) queryParams.append('keywords', params.keywords)
+  if (params?.file_paths) queryParams.append('file_paths', params.file_paths)
+  if (params?.date_from) queryParams.append('date_from', params.date_from.toString())
+  if (params?.date_to) queryParams.append('date_to', params.date_to.toString())
+  if (params?.limit) queryParams.append('limit', params.limit.toString())
+  if (params?.offset) queryParams.append('offset', params.offset.toString())
+
+  const response = await axiosInstance.get(
+    `/entities/${encodeURIComponent(entityName)}/relationships?${queryParams.toString()}`
+  )
+  return response.data
+}
+
+/**
+ * Get entity source document chunks
+ */
+export const getEntityDocuments = async (
+  entityName: string,
+  params?: {
+    file_paths?: string
+    doc_ids?: string
+    chunk_ids?: string
+    date_from?: number
+    date_to?: number
+    max_chunks?: number
+    offset?: number
+    include_full_text?: boolean
+    include_metadata?: boolean
+  }
+): Promise<DocumentChunk[]> => {
+  const queryParams = new URLSearchParams()
+  if (params?.file_paths) queryParams.append('file_paths', params.file_paths)
+  if (params?.doc_ids) queryParams.append('doc_ids', params.doc_ids)
+  if (params?.chunk_ids) queryParams.append('chunk_ids', params.chunk_ids)
+  if (params?.date_from) queryParams.append('date_from', params.date_from.toString())
+  if (params?.date_to) queryParams.append('date_to', params.date_to.toString())
+  if (params?.max_chunks) queryParams.append('max_chunks', params.max_chunks.toString())
+  if (params?.offset) queryParams.append('offset', params.offset.toString())
+  if (params?.include_full_text !== undefined) queryParams.append('include_full_text', params.include_full_text.toString())
+  if (params?.include_metadata !== undefined) queryParams.append('include_metadata', params.include_metadata.toString())
+
+  const response = await axiosInstance.get(
+    `/entities/${encodeURIComponent(entityName)}/documents?${queryParams.toString()}`
+  )
+  return response.data
+}
+
+/**
+ * Get comprehensive entity data
+ */
+export const getEntityFull = async (
+  entityName: string,
+  params?: {
+    include_entity?: boolean
+    include_relationships?: boolean
+    include_documents?: boolean
+    include_statistics?: boolean
+    compute_related_entities?: boolean
+    relationship_direction?: string
+    max_relationships?: number
+    min_weight?: number
+    max_chunks?: number
+  }
+): Promise<EntityFullResponse> => {
+  const queryParams = new URLSearchParams()
+  if (params?.include_entity !== undefined) queryParams.append('include_entity', params.include_entity.toString())
+  if (params?.include_relationships !== undefined) queryParams.append('include_relationships', params.include_relationships.toString())
+  if (params?.include_documents !== undefined) queryParams.append('include_documents', params.include_documents.toString())
+  if (params?.include_statistics !== undefined) queryParams.append('include_statistics', params.include_statistics.toString())
+  if (params?.compute_related_entities !== undefined) queryParams.append('compute_related_entities', params.compute_related_entities.toString())
+  if (params?.relationship_direction) queryParams.append('relationship_direction', params.relationship_direction)
+  if (params?.max_relationships) queryParams.append('max_relationships', params.max_relationships.toString())
+  if (params?.min_weight !== undefined) queryParams.append('min_weight', params.min_weight.toString())
+  if (params?.max_chunks) queryParams.append('max_chunks', params.max_chunks.toString())
+
+  const response = await axiosInstance.get(
+    `/entities/${encodeURIComponent(entityName)}/full?${queryParams.toString()}`
+  )
+  return response.data
+}
+
+// ========================================
+// Template Management API Types & Functions
+// ========================================
+
+export type TemplateMetadata = {
+  name: string
+  version: string
+  description: string
+  language?: string
+  entity_types: string[]
+}
+
+export type TemplateInfo = {
+  metadata: TemplateMetadata
+  available_prompts: string[]
+  delimiters: Record<string, string>
+  extraction_settings: Record<string, any>
+  is_active: boolean
+}
+
+export type TemplateListResponse = {
+  templates: string[]
+  active_template?: string
+  templates_enabled: boolean
+  template_directory: string
+}
+
+export type TemplateStatusResponse = {
+  enabled: boolean
+  active_template?: string
+  custom_template_path?: string
+  template_directory: string
+  fallback_to_hardcoded: boolean
+}
+
+export type TemplateValidationResponse = {
+  valid: boolean
+  errors: string[]
+  warnings: string[]
+}
+
+/**
+ * Get template system status
+ */
+export const getTemplateStatus = async (): Promise<TemplateStatusResponse> => {
+  const response = await axiosInstance.get('/templates/status')
+  return response.data
+}
+
+/**
+ * List all available templates
+ */
+export const listTemplates = async (): Promise<TemplateListResponse> => {
+  const response = await axiosInstance.get('/templates/list')
+  return response.data
+}
+
+/**
+ * Get detailed information about a specific template
+ */
+export const getTemplateInfo = async (templateName: string): Promise<TemplateInfo> => {
+  const response = await axiosInstance.get(`/templates/${encodeURIComponent(templateName)}`)
+  return response.data
+}
+
+/**
+ * Validate a template YAML content
+ */
+export const validateTemplate = async (templateContent: string): Promise<TemplateValidationResponse> => {
+  const response = await axiosInstance.post('/templates/validate', {
+    template_content: templateContent
+  })
+  return response.data
+}
+
+/**
+ * Reload the current template from disk
+ */
+export const reloadTemplate = async (): Promise<{
+  success: boolean
+  message: string
+  template_name: string
+  custom_path?: string
+}> => {
+  const response = await axiosInstance.post('/templates/reload')
+  return response.data
+}
