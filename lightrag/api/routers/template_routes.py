@@ -365,6 +365,65 @@ async def activate_template(
         )
 
 
+@router.delete("/{template_name}")
+async def delete_template(
+    template_name: str,
+    rag: LightRAG = Depends(get_lightrag_instance)
+):
+    """
+    Delete a template from the templates directory.
+
+    Removes the specified template YAML file. Cannot delete the currently
+    active template - you must switch to a different template first.
+
+    Args:
+        template_name: Name of the template to delete
+
+    Returns:
+        Success status and deletion information
+    """
+    # Prevent deletion of active template
+    if (rag.enable_extraction_templates and
+        rag.extraction_template_name == template_name and
+        not rag.custom_template_path):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot delete active template '{template_name}'. Switch to a different template first."
+        )
+
+    # Prevent deletion of 'default' template (safety measure)
+    if template_name == "default":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cannot delete the 'default' template for safety reasons."
+        )
+
+    template_dir = get_template_directory(rag)
+    template_file = Path(template_dir) / f"{template_name}.yaml"
+
+    if not template_file.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Template '{template_name}' not found in {template_dir}"
+        )
+
+    try:
+        template_file.unlink()  # Delete the file
+
+        return {
+            "success": True,
+            "message": f"Template '{template_name}' deleted successfully",
+            "deleted_template": template_name,
+            "template_path": str(template_file)
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete template: {str(e)}"
+        )
+
+
 @router.post("/upload")
 async def upload_template(
     template_name: str = Field(..., description="Name for the new template (without .yaml extension)"),
