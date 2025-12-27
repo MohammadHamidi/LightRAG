@@ -2,18 +2,24 @@ version: "3.9"
 
 services:
   lightrag:
-    container_name: lightrag
+    # Dynamic container name to avoid conflicts with Coolify
+    container_name: ${COOLIFY_CONTAINER_NAME:-lightrag}
     image: ghcr.io/hkuds/lightrag:latest
 
     ports:
-      - "${PORT:-9622}:9621"
+      - "9621:9621"
 
     env_file:
       - .env
 
+    # Override PORT to ensure internal server uses 9621
+    environment:
+      - PORT=9621
+
     volumes:
-      - ./data/rag_storage:/app/data/rag_storage
-      - ./data/inputs:/app/data/inputs
+      # Fixed paths - removed /data prefix
+      - ./data/rag_storage:/app/rag_storage
+      - ./data/inputs:/app/inputs
       - ./config.ini:/app/config.ini:ro
 
     restart: unless-stopped
@@ -21,13 +27,10 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
-    # optional but useful
     healthcheck:
-
-      disable: true
-
-      test: ["CMD", "wget", "-qO-", "http://localhost:9622/health"]
+      test: ["CMD", "wget", "-qO-", "http://localhost:9621/health"]
       interval: 30s
       timeout: 5s
       retries: 5
-      
+      start_period: 10s
+
