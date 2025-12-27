@@ -335,11 +335,18 @@ class EntityQueryService:
 
         # Get source_ids (chunk IDs where entity was mentioned)
         # Note: Graph storage uses 'source_id' (singular), but check both for compatibility
-        source_ids = entity_data.get("source_id", "") or entity_data.get("source_ids", "")
-        if isinstance(source_ids, str):
-            source_ids = source_ids.split(GRAPH_FIELD_SEP) if source_ids else []
-        elif not isinstance(source_ids, list):
+        # Handle None values explicitly since dict.get() returns the stored None instead of default
+        source_id_value = entity_data.get("source_id") or entity_data.get("source_ids") or ""
+        if isinstance(source_id_value, str):
+            source_ids = source_id_value.split(GRAPH_FIELD_SEP) if source_id_value else []
+        elif isinstance(source_id_value, list):
+            source_ids = source_id_value
+        else:
+            logger.warning(f"Unexpected source_id type: {type(source_id_value)}")
             source_ids = []
+
+        # Filter out empty strings
+        source_ids = [sid for sid in source_ids if sid]
 
         if not source_ids:
             logger.info(f"No source documents found for entity '{entity_name}'")
@@ -500,67 +507,96 @@ class EntityQueryService:
             Dictionary containing entity data, relationships, documents, and statistics
             or None if entity not found
         """
-        if options is None:
-            options = EntityQueryOptions()
+        try:
+            if options is None:
+                options = EntityQueryOptions()
 
-        # Get entity details
-        entity_data = None
-        if options.include_entity_details:
-            entity_data = await self.get_entity_details(entity_name)
-            if entity_data is None:
-                return None  # Entity not found
+            # Get entity details
+            entity_data = None
+            if options.include_entity_details:
+                try:
+                    entity_data = await self.get_entity_details(entity_name)
+                    if entity_data is None:
+                        return None  # Entity not found
+                except Exception as e:
+                    logger.error(f"Error getting entity details for '{entity_name}': {e}", exc_info=True)
+                    raise
 
-        # Get relationships
-        relationships = None
-        if options.include_relationships:
-            relationships = await self.get_entity_relationships(
-                entity_name,
-                filters=options.relationship_filters,
-            )
+            # Get relationships
+            relationships = None
+            if options.include_relationships:
+                try:
+                    relationships = await self.get_entity_relationships(
+                        entity_name,
+                        filters=options.relationship_filters,
+                    )
+                except Exception as e:
+                    logger.error(f"Error getting relationships for '{entity_name}': {e}", exc_info=True)
+                    # Don't fail the entire request, just skip relationships
+                    relationships = {"incoming": [], "outgoing": [], "total_count": 0}
 
-        # Get documents
-        documents = None
-        if options.include_documents:
-            documents = await self.get_entity_documents(
-                entity_name,
-                filters=options.document_filters,
-            )
+            # Get documents
+            documents = None
+            if options.include_documents:
+                try:
+                    documents = await self.get_entity_documents(
+                        entity_name,
+                        filters=options.document_filters,
+                    )
+                except Exception as e:
+                    logger.error(f"Error getting documents for '{entity_name}': {e}", exc_info=True)
+                    # Don't fail the entire request, just skip documents
+                    documents = []
 
-        # Compute statistics
-        statistics = None
-        if options.include_statistics:
-            statistics = self._compute_statistics(
-                entity_data, relationships, documents
-            )
+            # Compute statistics
+            statistics = None
+            if options.include_statistics:
+                try:
+                    statistics = self._compute_statistics(
+                        entity_data, relationships, documents
+                    )
+                except Exception as e:
+                    logger.error(f"Error computing statistics for '{entity_name}': {e}", exc_info=True)
+                    # Don't fail the entire request, just skip statistics
+                    statistics = {}
 
-        # Compute related entities
-        related_entities = None
-        if options.compute_related_entities and relationships:
-            related_entities = self._extract_related_entities(
-                entity_name, relationships, options.max_related_entities
-            )
+            # Compute related entities
+            related_entities = None
+            if options.compute_related_entities and relationships:
+                try:
+                    related_entities = self._extract_related_entities(
+                        entity_name, relationships, options.max_related_entities
+                    )
+                except Exception as e:
+                    logger.error(f"Error extracting related entities for '{entity_name}': {e}", exc_info=True)
+                    # Don't fail the entire request, just skip related entities
+                    related_entities = []
 
-        # Build result
-        result = {
-            "entity_name": entity_name,
-        }
+            # Build result
+            result = {
+                "entity_name": entity_name,
+            }
 
-        if entity_data:
-            result["entity"] = entity_data
+            if entity_data:
+                result["entity"] = entity_data
 
-        if relationships:
-            result["relationships"] = relationships
+            if relationships:
+                result["relationships"] = relationships
 
-        if documents:
-            result["documents"] = documents
+            if documents is not None:
+                result["documents"] = documents
 
-        if statistics:
-            result["statistics"] = statistics
+            if statistics:
+                result["statistics"] = statistics
 
-        if related_entities:
-            result["related_entities"] = related_entities
+            if related_entities:
+                result["related_entities"] = related_entities
 
-        return result
+            return result
+
+        except Exception as e:
+            logger.error(f"Unexpected error in query_entity_full for '{entity_name}': {e}", exc_info=True)
+            raise
 
     def _compute_statistics(
         self,
@@ -583,17 +619,26 @@ class EntityQueryService:
 
         if entity_data:
             # Check both 'source_id' (singular, used by graph storage) and 'source_ids' (plural) for compatibility
-            source_ids = entity_data.get("source_id", "") or entity_data.get("source_ids", "")
-            if isinstance(source_ids, str):
-                source_ids = source_ids.split(GRAPH_FIELD_SEP) if source_ids else []
-            elif not isinstance(source_ids, list):
+            # Handle None values explicitly since dict.get() returns the stored None instead of default
+            source_id_value = entity_data.get("source_id") or entity_data.get("source_ids") or ""
+            if isinstance(source_id_value, str):
+                source_ids = source_id_value.split(GRAPH_FIELD_SEP) if source_id_value else []
+            elif isinstance(source_id_value, list):
+                source_ids = source_id_value
+            else:
                 source_ids = []
+            # Filter out empty strings
+            source_ids = [sid for sid in source_ids if sid]
 
-            file_paths = entity_data.get("file_path", "") or entity_data.get("file_paths", "")
-            if isinstance(file_paths, str):
-                file_paths = file_paths.split(GRAPH_FIELD_SEP) if file_paths else []
-            elif not isinstance(file_paths, list):
+            file_path_value = entity_data.get("file_path") or entity_data.get("file_paths") or ""
+            if isinstance(file_path_value, str):
+                file_paths = file_path_value.split(GRAPH_FIELD_SEP) if file_path_value else []
+            elif isinstance(file_path_value, list):
+                file_paths = file_path_value
+            else:
                 file_paths = []
+            # Filter out empty strings
+            file_paths = [fp for fp in file_paths if fp]
 
             stats["total_source_chunks"] = len(source_ids)
             stats["unique_files"] = len(set(file_paths))
