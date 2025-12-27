@@ -6,7 +6,7 @@ services:
     image: ghcr.io/hkuds/lightrag:latest
 
     ports:
-      - "9621:9622"
+      - "9622:9622"
     expose:
       - "9622"
 
@@ -32,3 +32,16 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+
+    labels:
+      - "traefik.enable=true"
+
+      # Tell Traefik which internal port to use (the missing piece causing 502)
+      - "traefik.http.services.lightrag.loadbalancer.server.port=9622"
+
+      # Bind the existing Coolify-generated routers to this service name
+      - "traefik.http.routers.http-0-u0sww8c0og0okwos08wk4ogw-lightrag.service=lightrag"
+      - "traefik.http.routers.https-0-u0sww8c0og0okwos08wk4ogw-lightrag.service=lightrag"
+
+      # Optional but safe: force Traefik to use the correct network
+      - "traefik.docker.network=u0sww8c0og0okwos08wk4ogw"
