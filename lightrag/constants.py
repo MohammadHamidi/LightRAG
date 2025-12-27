@@ -97,3 +97,9 @@ DEFAULT_OLLAMA_MODEL_TAG = "latest"
 DEFAULT_OLLAMA_MODEL_SIZE = 7365960935
 DEFAULT_OLLAMA_CREATED_AT = "2024-01-15T00:00:00Z"
 DEFAULT_OLLAMA_DIGEST = "sha256:lightrag"
+
+# Template configuration defaults
+DEFAULT_ENABLE_EXTRACTION_TEMPLATES = False  # Whether to use YAML templates for prompts
+DEFAULT_EXTRACTION_TEMPLATE_NAME = "default"  # Template name to load
+DEFAULT_EXTRACTION_TEMPLATE_DIR = None  # Will resolve to lightrag/prompts/templates if None
+DEFAULT_CUSTOM_TEMPLATE_PATH = None  # Custom template file path (overrides template_name)

@@ -1,6 +1,6 @@
 from __future__ import annotations
-from typing import Any
-
+from typing import Any, Optional
+import os
 
 PROMPTS: dict[str, Any] = {}
 
@@ -430,3 +430,199 @@ Output:
 
 """,
 ]
+
+
+# ========================================
+# Prompt Manager for Template Integration
+# ========================================
+
+class PromptManager:
+    """
+    Manages prompt retrieval from either YAML templates or hardcoded PROMPTS dict.
+
+    Provides backward compatibility by falling back to hardcoded prompts when
+    template system is disabled.
+    """
+
+    def __init__(
+        self,
+        enable_templates: bool = False,
+        template_name: Optional[str] = None,
+        template_dir: Optional[str] = None,
+        custom_template_path: Optional[str] = None,
+    ):
+        """
+        Initialize the PromptManager.
+
+        Args:
+            enable_templates: Whether to use YAML template system
+            template_name: Name of template to load (e.g., 'default')
+            template_dir: Directory containing templates
+            custom_template_path: Path to custom template file
+        """
+        self.enable_templates = enable_templates
+        self.template_loader = None
+
+        if self.enable_templates:
+            try:
+                from lightrag.prompts import PromptTemplateLoader
+
+                self.template_loader = PromptTemplateLoader(
+                    template_name=template_name or "default",
+                    template_dir=template_dir,
+                    custom_template_path=custom_template_path,
+                )
+            except Exception as e:
+                print(f"Warning: Failed to load template system: {e}")
+                print("Falling back to hardcoded prompts")
+                self.enable_templates = False
+                self.template_loader = None
+
+    def get_prompt(self, prompt_key: str, **variables) -> str:
+        """
+        Get a rendered prompt.
+
+        Args:
+            prompt_key: Key identifying the prompt
+            **variables: Variables to substitute in the prompt
+
+        Returns:
+            Rendered prompt string
+        """
+        if self.enable_templates and self.template_loader:
+            try:
+                return self.template_loader.render_prompt(prompt_key, **variables)
+            except Exception as e:
+                print(f"Warning: Template rendering failed for '{prompt_key}': {e}")
+                print("Falling back to hardcoded prompt")
+                # Fall through to hardcoded prompts
+
+        # Fallback to hardcoded prompts
+        if prompt_key not in PROMPTS:
+            raise KeyError(
+                f"Prompt '{prompt_key}' not found in hardcoded PROMPTS dict"
+            )
+
+        prompt_template = PROMPTS[prompt_key]
+
+        # Handle list of examples (for entity_extraction_examples)
+        if isinstance(prompt_template, list):
+            return prompt_template
+
+        # Render template
+        try:
+            return prompt_template.format(**variables)
+        except KeyError as e:
+            missing_var = str(e).strip("'")
+            raise ValueError(
+                f"Missing required variable '{missing_var}' for prompt '{prompt_key}'"
+            )
+
+    def get_delimiter(self, delimiter_key: str) -> str:
+        """
+        Get a delimiter value.
+
+        Args:
+            delimiter_key: Key for the delimiter (e.g., 'tuple_delimiter')
+
+        Returns:
+            Delimiter string
+        """
+        if self.enable_templates and self.template_loader:
+            try:
+                delimiters = self.template_loader.get_delimiters()
+                if delimiter_key in delimiters:
+                    return delimiters[delimiter_key]
+            except Exception:
+                pass  # Fall through to hardcoded
+
+        # Fallback to hardcoded delimiters
+        delimiter_map = {
+            "tuple_delimiter": PROMPTS.get("DEFAULT_TUPLE_DELIMITER", "<|#|>"),
+            "completion_delimiter": PROMPTS.get("DEFAULT_COMPLETION_DELIMITER", "<|COMPLETE|>"),
+            "record_delimiter": "##",
+        }
+
+        return delimiter_map.get(delimiter_key, "")
+
+    def get_entity_types(self, fallback_types: Optional[list] = None) -> list:
+        """
+        Get entity types from template or fallback.
+
+        Args:
+            fallback_types: Types to use if template doesn't define them
+
+        Returns:
+            List of entity types
+        """
+        if self.enable_templates and self.template_loader:
+            try:
+                template_types = self.template_loader.get_entity_types()
+                if template_types:
+                    return template_types
+            except Exception:
+                pass  # Fall through to fallback
+
+        return fallback_types or []
+
+    def get_examples(self) -> list:
+        """
+        Get entity extraction examples.
+
+        Returns:
+            List of example strings
+        """
+        if self.enable_templates and self.template_loader:
+            try:
+                return self.template_loader.get_examples()
+            except Exception:
+                pass  # Fall through to hardcoded
+
+        # Fallback to hardcoded examples
+        return PROMPTS.get("entity_extraction_examples", [])
+
+    def get_extraction_settings(self) -> dict:
+        """
+        Get extraction-specific settings from template.
+
+        Returns:
+            Dict of extraction settings
+        """
+        if self.enable_templates and self.template_loader:
+            try:
+                return self.template_loader.get_extraction_settings()
+            except Exception:
+                pass
+
+        return {}
+
+    def reload_template(self) -> None:
+        """Reload the template from disk (useful for development)."""
+        if self.enable_templates and self.template_loader:
+            self.template_loader.reload()
+
+
+def create_prompt_manager(
+    enable_templates: bool = False,
+    template_name: Optional[str] = None,
+    template_dir: Optional[str] = None,
+    custom_template_path: Optional[str] = None,
+) -> PromptManager:
+    """
+    Factory function to create a PromptManager instance.
+
+    Args:
+        enable_templates: Whether to use YAML templates
+        template_name: Template name to load
+        template_dir: Template directory path
+        custom_template_path: Custom template file path
+
+    Returns:
+        PromptManager instance
+    """
+    return PromptManager(
+        enable_templates=enable_templates,
+        template_name=template_name,
+        template_dir=template_dir,
+        custom_template_path=custom_template_path,
+    )
