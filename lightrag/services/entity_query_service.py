@@ -334,9 +334,12 @@ class EntityQueryService:
             return []
 
         # Get source_ids (chunk IDs where entity was mentioned)
-        source_ids = entity_data.get("source_ids", [])
+        # Note: Graph storage uses 'source_id' (singular), but check both for compatibility
+        source_ids = entity_data.get("source_id", "") or entity_data.get("source_ids", "")
         if isinstance(source_ids, str):
-            source_ids = source_ids.split(GRAPH_FIELD_SEP)
+            source_ids = source_ids.split(GRAPH_FIELD_SEP) if source_ids else []
+        elif not isinstance(source_ids, list):
+            source_ids = []
 
         if not source_ids:
             logger.info(f"No source documents found for entity '{entity_name}'")
@@ -579,13 +582,18 @@ class EntityQueryService:
         stats = {}
 
         if entity_data:
-            source_ids = entity_data.get("source_ids", [])
+            # Check both 'source_id' (singular, used by graph storage) and 'source_ids' (plural) for compatibility
+            source_ids = entity_data.get("source_id", "") or entity_data.get("source_ids", "")
             if isinstance(source_ids, str):
-                source_ids = source_ids.split(GRAPH_FIELD_SEP)
+                source_ids = source_ids.split(GRAPH_FIELD_SEP) if source_ids else []
+            elif not isinstance(source_ids, list):
+                source_ids = []
 
-            file_paths = entity_data.get("file_paths", [])
+            file_paths = entity_data.get("file_path", "") or entity_data.get("file_paths", "")
             if isinstance(file_paths, str):
-                file_paths = file_paths.split(GRAPH_FIELD_SEP)
+                file_paths = file_paths.split(GRAPH_FIELD_SEP) if file_paths else []
+            elif not isinstance(file_paths, list):
+                file_paths = []
 
             stats["total_source_chunks"] = len(source_ids)
             stats["unique_files"] = len(set(file_paths))
