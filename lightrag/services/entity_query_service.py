@@ -666,21 +666,27 @@ class EntityQueryService:
             Dictionary with entities list, total count, and pagination info
         """
         try:
-            # Get all entity keys
-            all_entity_keys = await self.full_entities.filter_keys(pattern="*")
-
-            # Fetch all entities (in batches if needed)
-            all_entities_dict = await self.full_entities.get_by_ids(all_entity_keys)
+            # Get all nodes from graph storage (where entities are actually stored)
+            all_nodes = await self.graph.get_all_nodes()
 
             # Filter and process entities
             entities = []
-            for entity_id, entity_data in all_entities_dict.items():
-                if entity_data is None:
+            seen_entities = set()  # Deduplication in case storage returns duplicates
+
+            for node in all_nodes:
+                if not node or not isinstance(node, dict):
                     continue
+
+                # Extract entity ID from node
+                entity_id = node.get("id") or node.get("entity_name") or node.get("name")
+                if not entity_id or entity_id in seen_entities:
+                    continue
+
+                seen_entities.add(entity_id)
 
                 # Apply entity type filter
                 if entity_types:
-                    entity_type = entity_data.get("entity_type", "").lower()
+                    entity_type = node.get("entity_type", "").lower()
                     if entity_type not in [et.lower() for et in entity_types]:
                         continue
 
@@ -690,22 +696,27 @@ class EntityQueryService:
                         continue
 
                 # Build entity summary
+                description = node.get("description", "")
                 entity_summary = {
                     "entity_id": entity_id,
-                    "entity_type": entity_data.get("entity_type"),
-                    "description": entity_data.get("description", "")[:200],  # Truncate description
-                    "description_full_length": len(entity_data.get("description", "")),
+                    "entity_type": node.get("entity_type"),
+                    "description": description[:200] if description else "",  # Truncate description
+                    "description_full_length": len(description) if description else 0,
                 }
 
                 # Add optional metadata
-                if "timestamp" in entity_data:
-                    entity_summary["created_at"] = entity_data["timestamp"]
+                if "created_at" in node:
+                    entity_summary["created_at"] = node["created_at"]
+                elif "timestamp" in node:
+                    entity_summary["created_at"] = node["timestamp"]
 
                 # Count source chunks
-                source_ids = entity_data.get("source_ids", [])
+                source_ids = node.get("source_id", "") or node.get("source_ids", "")
                 if isinstance(source_ids, str):
-                    source_ids = source_ids.split(GRAPH_FIELD_SEP)
-                entity_summary["source_count"] = len(source_ids)
+                    source_ids = source_ids.split(GRAPH_FIELD_SEP) if source_ids else []
+                elif not isinstance(source_ids, list):
+                    source_ids = []
+                entity_summary["source_count"] = len([s for s in source_ids if s])
 
                 entities.append(entity_summary)
 
@@ -806,19 +817,25 @@ class EntityQueryService:
             Dictionary mapping entity_type to count
         """
         try:
-            # Get all entity keys
-            all_entity_keys = await self.full_entities.filter_keys(pattern="*")
+            # Get all nodes from graph storage
+            all_nodes = await self.graph.get_all_nodes()
 
-            # Fetch all entities
-            all_entities_dict = await self.full_entities.get_by_ids(all_entity_keys)
-
-            # Count by type
+            # Count by type with deduplication
             type_counts = {}
-            for entity_id, entity_data in all_entities_dict.items():
-                if entity_data is None:
+            seen_entities = set()
+
+            for node in all_nodes:
+                if not node or not isinstance(node, dict):
                     continue
 
-                entity_type = entity_data.get("entity_type", "unknown")
+                # Extract entity ID for deduplication
+                entity_id = node.get("id") or node.get("entity_name") or node.get("name")
+                if not entity_id or entity_id in seen_entities:
+                    continue
+
+                seen_entities.add(entity_id)
+
+                entity_type = node.get("entity_type", "unknown")
                 type_counts[entity_type] = type_counts.get(entity_type, 0) + 1
 
             return type_counts
