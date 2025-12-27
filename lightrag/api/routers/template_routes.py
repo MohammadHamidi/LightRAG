@@ -4,7 +4,7 @@ Template Management API Routes
 Provides endpoints for managing and inspecting prompt templates.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Body
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
 import os
@@ -426,9 +426,9 @@ async def delete_template(
 
 @router.post("/upload")
 async def upload_template(
-    template_name: str = Field(..., description="Name for the new template (without .yaml extension)"),
-    template_content: str = Field(..., description="YAML content of the template"),
-    activate: bool = Field(False, description="Activate the template immediately after upload"),
+    template_name: str = Body(..., description="Name for the new template (without .yaml extension)"),
+    template_content: str = Body(..., description="YAML content of the template"),
+    activate: bool = Body(False, description="Activate the template immediately after upload"),
     rag: LightRAG = Depends(get_lightrag_instance)
 ):
     """
