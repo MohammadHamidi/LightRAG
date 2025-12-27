@@ -665,74 +665,86 @@ class EntityQueryService:
         Returns:
             Dictionary with entities list, total count, and pagination info
         """
-        # Get all entity keys
-        all_entity_keys = await self.full_entities.filter_keys(pattern="*")
-
-        # Fetch all entities (in batches if needed)
-        all_entities_dict = await self.full_entities.get_by_ids(all_entity_keys)
-
-        # Filter and process entities
-        entities = []
-        for entity_id, entity_data in all_entities_dict.items():
-            if entity_data is None:
-                continue
-
-            # Apply entity type filter
-            if entity_types:
-                entity_type = entity_data.get("entity_type", "").lower()
-                if entity_type not in [et.lower() for et in entity_types]:
-                    continue
-
-            # Apply name pattern filter
-            if name_pattern:
-                if name_pattern.lower() not in entity_id.lower():
-                    continue
-
-            # Build entity summary
-            entity_summary = {
-                "entity_id": entity_id,
-                "entity_type": entity_data.get("entity_type"),
-                "description": entity_data.get("description", "")[:200],  # Truncate description
-                "description_full_length": len(entity_data.get("description", "")),
-            }
-
-            # Add optional metadata
-            if "timestamp" in entity_data:
-                entity_summary["created_at"] = entity_data["timestamp"]
-
-            # Count source chunks
-            source_ids = entity_data.get("source_ids", [])
-            if isinstance(source_ids, str):
-                source_ids = source_ids.split(GRAPH_FIELD_SEP)
-            entity_summary["source_count"] = len(source_ids)
-
-            entities.append(entity_summary)
-
-        # Sort entities
-        reverse = (sort_order.lower() == "desc")
         try:
-            entities = sorted(
-                entities,
-                key=lambda e: e.get(sort_by, ""),
-                reverse=reverse
-            )
+            # Get all entity keys
+            all_entity_keys = await self.full_entities.filter_keys(pattern="*")
+
+            # Fetch all entities (in batches if needed)
+            all_entities_dict = await self.full_entities.get_by_ids(all_entity_keys)
+
+            # Filter and process entities
+            entities = []
+            for entity_id, entity_data in all_entities_dict.items():
+                if entity_data is None:
+                    continue
+
+                # Apply entity type filter
+                if entity_types:
+                    entity_type = entity_data.get("entity_type", "").lower()
+                    if entity_type not in [et.lower() for et in entity_types]:
+                        continue
+
+                # Apply name pattern filter
+                if name_pattern:
+                    if name_pattern.lower() not in entity_id.lower():
+                        continue
+
+                # Build entity summary
+                entity_summary = {
+                    "entity_id": entity_id,
+                    "entity_type": entity_data.get("entity_type"),
+                    "description": entity_data.get("description", "")[:200],  # Truncate description
+                    "description_full_length": len(entity_data.get("description", "")),
+                }
+
+                # Add optional metadata
+                if "timestamp" in entity_data:
+                    entity_summary["created_at"] = entity_data["timestamp"]
+
+                # Count source chunks
+                source_ids = entity_data.get("source_ids", [])
+                if isinstance(source_ids, str):
+                    source_ids = source_ids.split(GRAPH_FIELD_SEP)
+                entity_summary["source_count"] = len(source_ids)
+
+                entities.append(entity_summary)
+
+            # Sort entities
+            reverse = (sort_order.lower() == "desc")
+            try:
+                entities = sorted(
+                    entities,
+                    key=lambda e: e.get(sort_by, ""),
+                    reverse=reverse
+                )
+            except Exception as e:
+                logger.warning(f"Failed to sort entities by '{sort_by}': {e}")
+
+            # Get total count before pagination
+            total_count = len(entities)
+
+            # Apply pagination
+            entities = entities[offset:offset + limit]
+
+            return {
+                "entities": entities,
+                "total_count": total_count,
+                "returned_count": len(entities),
+                "offset": offset,
+                "limit": limit,
+                "has_more": (offset + len(entities)) < total_count,
+            }
         except Exception as e:
-            logger.warning(f"Failed to sort entities by '{sort_by}': {e}")
-
-        # Get total count before pagination
-        total_count = len(entities)
-
-        # Apply pagination
-        entities = entities[offset:offset + limit]
-
-        return {
-            "entities": entities,
-            "total_count": total_count,
-            "returned_count": len(entities),
-            "offset": offset,
-            "limit": limit,
-            "has_more": (offset + len(entities)) < total_count,
-        }
+            logger.error(f"Failed to list entities: {e}", exc_info=True)
+            # Return empty result if there's an error (storage not initialized, etc.)
+            return {
+                "entities": [],
+                "total_count": 0,
+                "returned_count": 0,
+                "offset": offset,
+                "limit": limit,
+                "has_more": False,
+            }
 
     async def search_entities(
         self,
@@ -793,19 +805,24 @@ class EntityQueryService:
         Returns:
             Dictionary mapping entity_type to count
         """
-        # Get all entity keys
-        all_entity_keys = await self.full_entities.filter_keys(pattern="*")
+        try:
+            # Get all entity keys
+            all_entity_keys = await self.full_entities.filter_keys(pattern="*")
 
-        # Fetch all entities
-        all_entities_dict = await self.full_entities.get_by_ids(all_entity_keys)
+            # Fetch all entities
+            all_entities_dict = await self.full_entities.get_by_ids(all_entity_keys)
 
-        # Count by type
-        type_counts = {}
-        for entity_id, entity_data in all_entities_dict.items():
-            if entity_data is None:
-                continue
+            # Count by type
+            type_counts = {}
+            for entity_id, entity_data in all_entities_dict.items():
+                if entity_data is None:
+                    continue
 
-            entity_type = entity_data.get("entity_type", "unknown")
-            type_counts[entity_type] = type_counts.get(entity_type, 0) + 1
+                entity_type = entity_data.get("entity_type", "unknown")
+                type_counts[entity_type] = type_counts.get(entity_type, 0) + 1
 
-        return type_counts
+            return type_counts
+        except Exception as e:
+            logger.error(f"Failed to get entity types summary: {e}", exc_info=True)
+            # Return empty dict if there's an error (storage not initialized, etc.)
+            return {}

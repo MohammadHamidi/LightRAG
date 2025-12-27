@@ -41,6 +41,7 @@ from lightrag.constants import (
     VALID_SOURCE_IDS_LIMIT_METHODS,
     SOURCE_IDS_LIMIT_METHOD_FIFO,
 )
+from lightrag.exceptions import APIStatusError
 
 # Precompile regex pattern for JSON sanitization (module-level, compiled once)
 _SURROGATE_PATTERN = re.compile(r"[\uD800-\uDFFF\uFFFE\uFFFF]")
@@ -3098,6 +3099,23 @@ def create_prefixed_exception(original_exception: Exception, prefix: str) -> Exc
     Returns:
         A new exception with the prefix, maintaining the original exception type if possible.
     """
+    # Special handling for APIStatusError and its subclasses
+    # These require keyword-only arguments 'response' and 'body'
+    if isinstance(original_exception, APIStatusError):
+        try:
+            prefixed_message = f"{prefix}: {str(original_exception)}"
+            return type(original_exception)(
+                prefixed_message,
+                response=original_exception.response,
+                body=getattr(original_exception, 'body', None)
+            )
+        except (TypeError, ValueError, AttributeError) as construct_error:
+            # If APIStatusError reconstruction fails, wrap in RuntimeError
+            return RuntimeError(
+                f"{prefix}: {type(original_exception).__name__}: {str(original_exception)} "
+                f"(APIStatusError could not be reconstructed: {construct_error})"
+            )
+
     try:
         # Method 1: Try to reconstruct using original arguments.
         if hasattr(original_exception, "args") and original_exception.args:
