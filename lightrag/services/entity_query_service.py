@@ -369,6 +369,19 @@ class EntityQueryService:
                 logger.warning(f"No chunks found in storage for entity '{entity_name}' with source_ids: {source_ids}")
                 return []
 
+            # Handle different storage return types (dict or list)
+            if isinstance(chunks, dict):
+                # chunks is a dict: {chunk_id: chunk_data, ...}
+                chunks_items = chunks.items()
+            elif isinstance(chunks, list):
+                # chunks is a list of dicts: [chunk_data, ...]
+                # Need to pair with source_ids
+                logger.debug(f"Storage returned list format for entity '{entity_name}'")
+                chunks_items = zip(source_ids[:len(chunks)], chunks)
+            else:
+                logger.error(f"Unexpected chunks type from storage: {type(chunks)}")
+                return []
+
         except Exception as e:
             logger.error(f"Error retrieving chunks from storage for entity '{entity_name}': {e}", exc_info=True)
             return []
@@ -376,7 +389,7 @@ class EntityQueryService:
         # Process and filter chunks
         processed_chunks = []
         skipped_count = 0
-        for chunk_id, chunk_data in chunks.items():
+        for chunk_id, chunk_data in chunks_items:
             if chunk_data is None:
                 logger.debug(f"Chunk {chunk_id} has None data, skipping")
                 skipped_count += 1
