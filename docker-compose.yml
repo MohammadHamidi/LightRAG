@@ -6,7 +6,7 @@ services:
     image: ghcr.io/hkuds/lightrag:latest
 
     ports:
-      - "9622:9622"
+      - "9621:9622"
     expose:
       - "9622"
 
