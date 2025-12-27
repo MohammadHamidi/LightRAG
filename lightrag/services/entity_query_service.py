@@ -641,3 +641,171 @@ class EntityQueryService:
         # Convert to sorted list and limit
         related_list = sorted(list(related))
         return related_list[:max_entities]
+
+    async def list_entities(
+        self,
+        entity_types: Optional[List[str]] = None,
+        name_pattern: Optional[str] = None,
+        limit: int = 100,
+        offset: int = 0,
+        sort_by: str = "entity_id",
+        sort_order: str = "asc",
+    ) -> Dict[str, Any]:
+        """
+        List all entities with optional filtering and pagination.
+
+        Args:
+            entity_types: Filter by entity types (e.g., ['person', 'organization'])
+            name_pattern: Filter by name pattern (case-insensitive substring match)
+            limit: Maximum number of entities to return
+            offset: Number of entities to skip
+            sort_by: Field to sort by (entity_id, entity_type, timestamp)
+            sort_order: Sort order ('asc' or 'desc')
+
+        Returns:
+            Dictionary with entities list, total count, and pagination info
+        """
+        # Get all entity keys
+        all_entity_keys = await self.full_entities.filter_keys(pattern="*")
+
+        # Fetch all entities (in batches if needed)
+        all_entities_dict = await self.full_entities.get_by_ids(all_entity_keys)
+
+        # Filter and process entities
+        entities = []
+        for entity_id, entity_data in all_entities_dict.items():
+            if entity_data is None:
+                continue
+
+            # Apply entity type filter
+            if entity_types:
+                entity_type = entity_data.get("entity_type", "").lower()
+                if entity_type not in [et.lower() for et in entity_types]:
+                    continue
+
+            # Apply name pattern filter
+            if name_pattern:
+                if name_pattern.lower() not in entity_id.lower():
+                    continue
+
+            # Build entity summary
+            entity_summary = {
+                "entity_id": entity_id,
+                "entity_type": entity_data.get("entity_type"),
+                "description": entity_data.get("description", "")[:200],  # Truncate description
+                "description_full_length": len(entity_data.get("description", "")),
+            }
+
+            # Add optional metadata
+            if "timestamp" in entity_data:
+                entity_summary["created_at"] = entity_data["timestamp"]
+
+            # Count source chunks
+            source_ids = entity_data.get("source_ids", [])
+            if isinstance(source_ids, str):
+                source_ids = source_ids.split(GRAPH_FIELD_SEP)
+            entity_summary["source_count"] = len(source_ids)
+
+            entities.append(entity_summary)
+
+        # Sort entities
+        reverse = (sort_order.lower() == "desc")
+        try:
+            entities = sorted(
+                entities,
+                key=lambda e: e.get(sort_by, ""),
+                reverse=reverse
+            )
+        except Exception as e:
+            logger.warning(f"Failed to sort entities by '{sort_by}': {e}")
+
+        # Get total count before pagination
+        total_count = len(entities)
+
+        # Apply pagination
+        entities = entities[offset:offset + limit]
+
+        return {
+            "entities": entities,
+            "total_count": total_count,
+            "returned_count": len(entities),
+            "offset": offset,
+            "limit": limit,
+            "has_more": (offset + len(entities)) < total_count,
+        }
+
+    async def search_entities(
+        self,
+        query: str,
+        entity_types: Optional[List[str]] = None,
+        limit: int = 20,
+    ) -> List[Dict[str, Any]]:
+        """
+        Search entities by name (fuzzy/substring match).
+
+        Args:
+            query: Search query string
+            entity_types: Filter by entity types
+            limit: Maximum number of results
+
+        Returns:
+            List of matching entities with relevance scores
+        """
+        # Get all entities
+        result = await self.list_entities(
+            entity_types=entity_types,
+            name_pattern=query,
+            limit=limit,
+            sort_by="entity_id",
+        )
+
+        # Add relevance scoring
+        query_lower = query.lower()
+        entities_with_score = []
+
+        for entity in result["entities"]:
+            entity_id = entity["entity_id"]
+            entity_id_lower = entity_id.lower()
+
+            # Calculate relevance score
+            score = 0.0
+            if entity_id_lower == query_lower:
+                score = 1.0  # Exact match
+            elif entity_id_lower.startswith(query_lower):
+                score = 0.8  # Starts with query
+            elif query_lower in entity_id_lower:
+                score = 0.5  # Contains query
+            else:
+                score = 0.3  # Fuzzy match
+
+            entity["relevance_score"] = score
+            entities_with_score.append(entity)
+
+        # Sort by relevance score
+        entities_with_score.sort(key=lambda e: e["relevance_score"], reverse=True)
+
+        return entities_with_score
+
+    async def get_entity_types_summary(self) -> Dict[str, int]:
+        """
+        Get summary of all entity types and their counts.
+
+        Returns:
+            Dictionary mapping entity_type to count
+        """
+        # Get all entity keys
+        all_entity_keys = await self.full_entities.filter_keys(pattern="*")
+
+        # Fetch all entities
+        all_entities_dict = await self.full_entities.get_by_ids(all_entity_keys)
+
+        # Count by type
+        type_counts = {}
+        for entity_id, entity_data in all_entities_dict.items():
+            if entity_data is None:
+                continue
+
+            entity_type = entity_data.get("entity_type", "unknown")
+            type_counts[entity_type] = type_counts.get(entity_type, 0) + 1
+
+        return type_counts
