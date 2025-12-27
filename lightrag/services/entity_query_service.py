@@ -331,6 +331,7 @@ class EntityQueryService:
         # Get entity data to find source_ids
         entity_data = await self.get_entity_details(entity_name)
         if not entity_data:
+            logger.warning(f"Entity '{entity_name}' not found when getting documents")
             return []
 
         # Get source_ids (chunk IDs where entity was mentioned)
@@ -349,20 +350,36 @@ class EntityQueryService:
         source_ids = [sid for sid in source_ids if sid]
 
         if not source_ids:
-            logger.info(f"No source documents found for entity '{entity_name}'")
+            logger.info(f"No source_ids found for entity '{entity_name}' (entity_data keys: {list(entity_data.keys())})")
             return []
+
+        logger.info(f"Entity '{entity_name}': Found {len(source_ids)} source_ids: {source_ids[:3]}..." if len(source_ids) > 3 else f"Entity '{entity_name}': Found {len(source_ids)} source_ids: {source_ids}")
 
         # Filter source_ids by chunk_ids filter if provided
         if filters.chunk_ids:
             source_ids = [sid for sid in source_ids if sid in filters.chunk_ids]
+            logger.info(f"After chunk_ids filter: {len(source_ids)} source_ids remain")
 
         # Retrieve chunks
-        chunks = await self.text_chunks.get_by_ids(source_ids)
+        try:
+            chunks = await self.text_chunks.get_by_ids(source_ids)
+            logger.info(f"Retrieved {len(chunks)} chunks from storage for entity '{entity_name}'")
+
+            if not chunks:
+                logger.warning(f"No chunks found in storage for entity '{entity_name}' with source_ids: {source_ids}")
+                return []
+
+        except Exception as e:
+            logger.error(f"Error retrieving chunks from storage for entity '{entity_name}': {e}", exc_info=True)
+            return []
 
         # Process and filter chunks
         processed_chunks = []
+        skipped_count = 0
         for chunk_id, chunk_data in chunks.items():
             if chunk_data is None:
+                logger.debug(f"Chunk {chunk_id} has None data, skipping")
+                skipped_count += 1
                 continue
 
             # Apply filters
@@ -371,6 +388,10 @@ class EntityQueryService:
                     chunk_id, chunk_data, filters.include_full_text, filters.include_metadata
                 )
                 processed_chunks.append(chunk_dict)
+            else:
+                skipped_count += 1
+
+        logger.info(f"Processed {len(processed_chunks)} chunks for entity '{entity_name}' (skipped {skipped_count})")
 
         # Sort chunks
         processed_chunks = self._sort_chunks(processed_chunks, filters)
@@ -380,6 +401,7 @@ class EntityQueryService:
             processed_chunks, filters.max_chunks, filters.offset
         )
 
+        logger.info(f"Returning {len(processed_chunks)} chunks for entity '{entity_name}' after sorting and pagination")
         return processed_chunks
 
     def _chunk_matches_filters(
