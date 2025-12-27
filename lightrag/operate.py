@@ -320,7 +320,14 @@ async def _summarize_descriptions(
 
     summary_length_recommended = global_config["summary_length_recommended"]
 
-    prompt_template = PROMPTS["summarize_entity_descriptions"]
+    # Get PromptManager instance from global config
+    prompt_manager = global_config.get("_prompt_manager")
+    if prompt_manager is None:
+        # Fallback: use hardcoded prompt
+        prompt_template = PROMPTS["summarize_entity_descriptions"]
+    else:
+        # Will be used later with prompt_manager.get_prompt()
+        prompt_template = None
 
     # Convert descriptions to JSONL format and apply token-based truncation
     tokenizer = global_config["tokenizer"]
@@ -350,7 +357,12 @@ async def _summarize_descriptions(
         summary_length=summary_length_recommended,
         language=language,
     )
-    use_prompt = prompt_template.format(**context_base)
+
+    # Use PromptManager if available, otherwise use hardcoded template
+    if prompt_manager is not None:
+        use_prompt = prompt_manager.get_prompt("summarize_entity_descriptions", **context_base)
+    else:
+        use_prompt = prompt_template.format(**context_base)
 
     # Use LLM function with cache (higher priority for summary generation)
     summary, _ = await use_llm_func_with_cache(
@@ -2784,6 +2796,13 @@ async def extract_entities(
     use_llm_func: callable = global_config["llm_model_func"]
     entity_extract_max_gleaning = global_config["entity_extract_max_gleaning"]
 
+    # Get PromptManager instance from global config
+    prompt_manager = global_config.get("_prompt_manager")
+    if prompt_manager is None:
+        # Fallback: create a default PromptManager if not available
+        from lightrag.prompt import create_prompt_manager
+        prompt_manager = create_prompt_manager(enable_templates=False)
+
     ordered_chunks = list(chunks.items())
     # add language and example number params to prompt
     language = global_config["addon_params"].get("language", DEFAULT_SUMMARY_LANGUAGE)
@@ -2791,11 +2810,22 @@ async def extract_entities(
         "entity_types", DEFAULT_ENTITY_TYPES
     )
 
-    examples = "\n".join(PROMPTS["entity_extraction_examples"])
+    # Use PromptManager to get examples and delimiters
+    examples_list = prompt_manager.get_examples()
+    examples = "\n".join(examples_list)
+
+    # Get delimiters from PromptManager
+    tuple_delimiter = prompt_manager.get_delimiter("tuple_delimiter")
+    completion_delimiter = prompt_manager.get_delimiter("completion_delimiter")
+
+    # Check if template overrides entity_types
+    template_entity_types = prompt_manager.get_entity_types(fallback_types=None)
+    if template_entity_types:
+        entity_types = template_entity_types
 
     example_context_base = dict(
-        tuple_delimiter=PROMPTS["DEFAULT_TUPLE_DELIMITER"],
-        completion_delimiter=PROMPTS["DEFAULT_COMPLETION_DELIMITER"],
+        tuple_delimiter=tuple_delimiter,
+        completion_delimiter=completion_delimiter,
         entity_types=", ".join(entity_types),
         language=language,
     )
@@ -2803,8 +2833,8 @@ async def extract_entities(
     examples = examples.format(**example_context_base)
 
     context_base = dict(
-        tuple_delimiter=PROMPTS["DEFAULT_TUPLE_DELIMITER"],
-        completion_delimiter=PROMPTS["DEFAULT_COMPLETION_DELIMITER"],
+        tuple_delimiter=tuple_delimiter,
+        completion_delimiter=completion_delimiter,
         entity_types=",".join(entity_types),
         examples=examples,
         language=language,
@@ -2833,16 +2863,16 @@ async def extract_entities(
 
         # Get initial extraction
         # Format system prompt without input_text for each chunk (enables OpenAI prompt caching across chunks)
-        entity_extraction_system_prompt = PROMPTS[
-            "entity_extraction_system_prompt"
-        ].format(**context_base)
-        # Format user prompts with input_text for each chunk
-        entity_extraction_user_prompt = PROMPTS["entity_extraction_user_prompt"].format(
-            **{**context_base, "input_text": content}
+        entity_extraction_system_prompt = prompt_manager.get_prompt(
+            "entity_extraction_system", **context_base
         )
-        entity_continue_extraction_user_prompt = PROMPTS[
-            "entity_continue_extraction_user_prompt"
-        ].format(**{**context_base, "input_text": content})
+        # Format user prompts with input_text for each chunk
+        entity_extraction_user_prompt = prompt_manager.get_prompt(
+            "entity_extraction_user", **{**context_base, "input_text": content}
+        )
+        entity_continue_extraction_user_prompt = prompt_manager.get_prompt(
+            "entity_continue_extraction", **{**context_base, "input_text": content}
+        )
 
         final_result, timestamp = await use_llm_func_with_cache(
             entity_extraction_user_prompt,

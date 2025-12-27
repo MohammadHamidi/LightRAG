@@ -53,6 +53,10 @@ from lightrag.constants import (
     DEFAULT_SOURCE_IDS_LIMIT_METHOD,
     DEFAULT_MAX_FILE_PATHS,
     DEFAULT_FILE_PATH_MORE_PLACEHOLDER,
+    DEFAULT_ENABLE_EXTRACTION_TEMPLATES,
+    DEFAULT_EXTRACTION_TEMPLATE_NAME,
+    DEFAULT_EXTRACTION_TEMPLATE_DIR,
+    DEFAULT_CUSTOM_TEMPLATE_PATH,
 )
 from lightrag.utils import get_env_value
 
@@ -416,6 +420,37 @@ class LightRAG:
     file_path_more_placeholder: str = field(default=DEFAULT_FILE_PATH_MORE_PLACEHOLDER)
     """Placeholder text when file paths exceed max_file_paths limit."""
 
+    # Prompt Template Configuration
+    # ---
+
+    enable_extraction_templates: bool = field(
+        default=get_env_value(
+            "ENABLE_EXTRACTION_TEMPLATES", DEFAULT_ENABLE_EXTRACTION_TEMPLATES, bool
+        )
+    )
+    """Enable YAML-based prompt templates for entity extraction."""
+
+    extraction_template_name: str = field(
+        default=get_env_value(
+            "EXTRACTION_TEMPLATE_NAME", DEFAULT_EXTRACTION_TEMPLATE_NAME, str
+        )
+    )
+    """Name of the extraction template to use (e.g., 'default', 'scientific', 'legal')."""
+
+    extraction_template_dir: Optional[str] = field(
+        default=get_env_value(
+            "EXTRACTION_TEMPLATE_DIR", DEFAULT_EXTRACTION_TEMPLATE_DIR, str
+        )
+    )
+    """Directory containing template YAML files. If None, uses lightrag/prompts/templates/."""
+
+    custom_template_path: Optional[str] = field(
+        default=get_env_value(
+            "CUSTOM_TEMPLATE_PATH", DEFAULT_CUSTOM_TEMPLATE_PATH, str
+        )
+    )
+    """Path to custom template file. If specified, overrides extraction_template_name."""
+
     addon_params: dict[str, Any] = field(
         default_factory=lambda: {
             "language": get_env_value(
@@ -440,6 +475,9 @@ class LightRAG:
     """Configuration for Ollama server information."""
 
     _storages_status: StoragesStatus = field(default=StoragesStatus.NOT_CREATED)
+
+    _prompt_manager: Any = field(default=None, init=False)
+    """PromptManager instance for handling template-based or hardcoded prompts."""
 
     def __post_init__(self):
         from lightrag.kg.shared_storage import (
@@ -503,6 +541,21 @@ class LightRAG:
         # Initialize ollama_server_infos if not provided
         if self.ollama_server_infos is None:
             self.ollama_server_infos = OllamaServerInfos()
+
+        # Initialize PromptManager for template-based or hardcoded prompts
+        from lightrag.prompt import create_prompt_manager
+
+        self._prompt_manager = create_prompt_manager(
+            enable_templates=self.enable_extraction_templates,
+            template_name=self.extraction_template_name,
+            template_dir=self.extraction_template_dir,
+            custom_template_path=self.custom_template_path,
+        )
+
+        logger.info(
+            f"PromptManager initialized: templates_enabled={self.enable_extraction_templates}, "
+            f"template_name={self.extraction_template_name if self.enable_extraction_templates else 'N/A'}"
+        )
 
         # Validate config
         if self.force_llm_summary_on_merge < 3:
