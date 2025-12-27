@@ -75,4 +75,5 @@ export type ButtonVariantType = Exclude<
   undefined
 >
 
+export { Button }
 export default Button
