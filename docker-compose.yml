@@ -28,7 +28,6 @@ services:
       - "host.docker.internal:host-gateway"
 
     healthcheck:
-      disable: true
       test: ["CMD", "wget", "-qO-", "http://localhost:9622/health"]
       interval: 30s
       timeout: 5s
