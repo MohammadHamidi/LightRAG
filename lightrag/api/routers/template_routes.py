@@ -307,3 +307,149 @@ async def reload_template(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to reload template: {str(e)}"
         )
+
+
+class ActivateTemplateRequest(BaseModel):
+    """Request to activate a template."""
+    template_name: str = Field(..., description="Name of template to activate")
+
+
+@router.post("/activate")
+async def activate_template(
+    request: ActivateTemplateRequest,
+    rag: LightRAG = Depends(get_lightrag_instance)
+):
+    """
+    Activate a different template at runtime.
+
+    Switches the extraction template to the specified template name.
+    The template must exist in the templates directory.
+
+    Args:
+        template_name: Name of the template to activate (e.g., 'default', 'arabic')
+
+    Returns:
+        Success status and active template information
+    """
+    if not rag.enable_extraction_templates:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Template system is not enabled. Set enable_extraction_templates=True to use this feature."
+        )
+
+    template_dir = get_template_directory(rag)
+    available_templates = list_available_templates(template_dir)
+
+    # Verify template exists
+    if request.template_name not in available_templates:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Template '{request.template_name}' not found. Available templates: {', '.join(available_templates)}"
+        )
+
+    try:
+        # Switch to the new template
+        rag.switch_extraction_template(template_name=request.template_name)
+
+        return {
+            "success": True,
+            "message": f"Successfully activated template '{request.template_name}'",
+            "active_template": request.template_name,
+            "template_directory": template_dir
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to activate template '{request.template_name}': {str(e)}"
+        )
+
+
+@router.post("/upload")
+async def upload_template(
+    template_name: str = Field(..., description="Name for the new template (without .yaml extension)"),
+    template_content: str = Field(..., description="YAML content of the template"),
+    activate: bool = Field(False, description="Activate the template immediately after upload"),
+    rag: LightRAG = Depends(get_lightrag_instance)
+):
+    """
+    Upload a new template to the templates directory.
+
+    Creates a new template YAML file in the templates directory. Optionally
+    activates it immediately.
+
+    Args:
+        template_name: Name for the template file (without .yaml extension)
+        template_content: Full YAML content of the template
+        activate: Whether to activate this template immediately
+
+    Returns:
+        Success status and template information
+    """
+    import yaml
+
+    # Validate template name
+    if not template_name or '/' in template_name or '\\' in template_name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid template name. Must not contain path separators."
+        )
+
+    # Validate YAML syntax
+    try:
+        template_data = yaml.safe_load(template_content)
+    except yaml.YAMLError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid YAML syntax: {str(e)}"
+        )
+
+    # Validate template structure
+    from lightrag.prompts import validate_template
+    is_valid, errors = validate_template(template_data)
+    if not is_valid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Template validation failed: {'; '.join(errors)}"
+        )
+
+    # Get template directory
+    template_dir = get_template_directory(rag)
+    template_path = Path(template_dir)
+
+    # Create directory if it doesn't exist
+    template_path.mkdir(parents=True, exist_ok=True)
+
+    # Write template file
+    template_file = template_path / f"{template_name}.yaml"
+
+    try:
+        template_file.write_text(template_content, encoding='utf-8')
+
+        response = {
+            "success": True,
+            "message": f"Template '{template_name}' uploaded successfully",
+            "template_name": template_name,
+            "template_path": str(template_file),
+            "activated": False
+        }
+
+        # Optionally activate the template
+        if activate:
+            if not rag.enable_extraction_templates:
+                response["activation_warning"] = "Template uploaded but not activated (template system disabled)"
+            else:
+                try:
+                    rag.switch_extraction_template(template_name=template_name)
+                    response["activated"] = True
+                    response["message"] = f"Template '{template_name}' uploaded and activated successfully"
+                except Exception as e:
+                    response["activation_error"] = f"Failed to activate: {str(e)}"
+
+        return response
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to write template file: {str(e)}"
+        )

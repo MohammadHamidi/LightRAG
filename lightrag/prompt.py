@@ -601,6 +601,40 @@ class PromptManager:
         if self.enable_templates and self.template_loader:
             self.template_loader.reload()
 
+    def switch_template(
+        self,
+        template_name: Optional[str] = None,
+        custom_template_path: Optional[str] = None,
+        template_dir: Optional[str] = None,
+    ) -> None:
+        """
+        Switch to a different template at runtime.
+
+        Args:
+            template_name: Name of template to load (e.g., 'default', 'arabic')
+            custom_template_path: Path to custom template file (overrides template_name)
+            template_dir: Directory containing templates (uses current if None)
+
+        Raises:
+            ValueError: If templates are not enabled
+            Exception: If template loading fails
+        """
+        if not self.enable_templates:
+            raise ValueError("Template system is not enabled. Cannot switch templates.")
+
+        from lightrag.prompts import PromptTemplateLoader
+
+        # Use existing template_dir if not specified
+        if template_dir is None and self.template_loader:
+            template_dir = self.template_loader.template_dir
+
+        # Create new template loader
+        self.template_loader = PromptTemplateLoader(
+            template_name=template_name or "default",
+            template_dir=template_dir,
+            custom_template_path=custom_template_path,
+        )
+
 
 def create_prompt_manager(
     enable_templates: bool = False,

@@ -2919,6 +2919,52 @@ class LightRAG:
         """Synchronous version of aclear_cache."""
         return always_get_an_event_loop().run_until_complete(self.aclear_cache())
 
+    def switch_extraction_template(
+        self,
+        template_name: Optional[str] = None,
+        custom_template_path: Optional[str] = None,
+    ) -> None:
+        """
+        Switch to a different extraction template at runtime.
+
+        Args:
+            template_name: Name of template to activate (e.g., 'default', 'arabic')
+            custom_template_path: Path to custom template file (overrides template_name)
+
+        Raises:
+            ValueError: If template system is not enabled
+            Exception: If template loading fails
+
+        Example:
+            rag.switch_extraction_template(template_name='arabic')
+            rag.switch_extraction_template(custom_template_path='/path/to/custom.yaml')
+        """
+        if not self.enable_extraction_templates:
+            raise ValueError(
+                "Template system is not enabled. Set enable_extraction_templates=True "
+                "when initializing LightRAG to use this feature."
+            )
+
+        # Update the internal configuration
+        if custom_template_path:
+            self.custom_template_path = custom_template_path
+            self.extraction_template_name = None  # Custom path takes precedence
+        else:
+            self.extraction_template_name = template_name or "default"
+            self.custom_template_path = None
+
+        # Switch the template in PromptManager
+        self._prompt_manager.switch_template(
+            template_name=self.extraction_template_name,
+            custom_template_path=self.custom_template_path,
+            template_dir=self.extraction_template_dir,
+        )
+
+        logger.info(
+            f"Switched extraction template to: "
+            f"{custom_template_path or template_name or 'default'}"
+        )
+
     async def get_docs_by_status(
         self, status: DocStatus
     ) -> dict[str, DocProcessingStatus]:
