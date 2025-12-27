@@ -224,6 +224,43 @@ async def get_template_info(
         )
 
 
+@router.get("/{template_name}/content")
+async def get_template_content(
+    template_name: str,
+    rag: LightRAG = Depends(get_lightrag_instance)
+):
+    """
+    Get the raw YAML content of a template.
+
+    Args:
+        template_name: Name of the template
+
+    Returns:
+        The raw YAML content as a string
+    """
+    template_dir = get_template_directory(rag)
+    template_file = Path(template_dir) / f"{template_name}.yaml"
+
+    if not template_file.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Template '{template_name}' not found in {template_dir}"
+        )
+
+    try:
+        content = template_file.read_text(encoding='utf-8')
+        return {
+            "template_name": template_name,
+            "content": content,
+            "file_path": str(template_file)
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to read template file: {str(e)}"
+        )
+
+
 @router.post("/validate", response_model=TemplateValidationResponse)
 async def validate_template(
     request: TemplateValidationRequest

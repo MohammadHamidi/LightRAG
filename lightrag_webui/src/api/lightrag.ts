@@ -1150,3 +1150,67 @@ export const reloadTemplate = async (): Promise<{
   const response = await axiosInstance.post('/templates/reload')
   return response.data
 }
+
+/**
+ * Get raw YAML content of a template
+ */
+export const getTemplateContent = async (templateName: string): Promise<{
+  template_name: string
+  content: string
+  file_path: string
+}> => {
+  const response = await axiosInstance.get(`/templates/${encodeURIComponent(templateName)}/content`)
+  return response.data
+}
+
+/**
+ * Upload/create a new template
+ */
+export const uploadTemplate = async (
+  templateName: string,
+  templateContent: string,
+  activate: boolean = false
+): Promise<{
+  success: boolean
+  message: string
+  template_name: string
+  template_path: string
+  activated: boolean
+  activation_warning?: string
+  activation_error?: string
+}> => {
+  const response = await axiosInstance.post('/templates/upload', {
+    template_name: templateName,
+    template_content: templateContent,
+    activate: activate
+  })
+  return response.data
+}
+
+/**
+ * Activate a template
+ */
+export const activateTemplate = async (templateName: string): Promise<{
+  success: boolean
+  message: string
+  active_template: string
+  template_directory: string
+}> => {
+  const response = await axiosInstance.post('/templates/activate', {
+    template_name: templateName
+  })
+  return response.data
+}
+
+/**
+ * Delete a template
+ */
+export const deleteTemplate = async (templateName: string): Promise<{
+  success: boolean
+  message: string
+  deleted_template: string
+  template_path: string
+}> => {
+  const response = await axiosInstance.delete(`/templates/${encodeURIComponent(templateName)}`)
+  return response.data
+}
