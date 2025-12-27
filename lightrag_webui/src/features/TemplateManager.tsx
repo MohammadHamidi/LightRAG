@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { ScrollArea } from '@/components/ui/ScrollArea'
 import Input from '@/components/ui/Input'
-import { Textarea } from '@/components/ui/Textarea'
+import Textarea from '@/components/ui/Textarea'
 import {
   Dialog,
   DialogContent,
