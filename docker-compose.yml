@@ -30,7 +30,6 @@ services:
 
     healthcheck:
       disable: true # TODO: Enable healthcheck
-      port: "${PORT:-9621}"
       test: ["CMD", "python", "-c", "import urllib.request; import os; port=os.getenv('PORT'); urllib.request.urlopen(f'http://127.0.0.1:{port}/health', timeout=2).read()"]
       interval: 30s
       timeout: 5s
