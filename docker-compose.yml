@@ -8,15 +8,15 @@ services:
       dockerfile: Dockerfile
 
     ports:
-      - "${PORT:-9622}:${PORT:-9622}"
+      - "${PORT}:${PORT}"
     expose:
-      - "${PORT:-9622}"
+      - "${PORT}"
 
     env_file:
       - .env
 
     environment:
-      PORT: "${PORT:-9622}"
+      PORT: "${PORT}"
 
     volumes:
       - ./data/rag_storage:/app/rag_storage
@@ -29,7 +29,7 @@ services:
       - "host.docker.internal:host-gateway"
 
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; import os; port=os.getenv('PORT', '9622'); urllib.request.urlopen(f'http://127.0.0.1:{port}/health', timeout=2).read()"]
+      test: ["CMD", "python", "-c", "import urllib.request; import os; port=os.getenv('PORT'); urllib.request.urlopen(f'http://127.0.0.1:{port}/health', timeout=2).read()"]
       interval: 30s
       timeout: 5s
       retries: 5
@@ -39,7 +39,7 @@ services:
       - "traefik.enable=true"
 
       # Tell Traefik which internal port to use (the missing piece causing 502)
-      - "traefik.http.services.lightrag.loadbalancer.server.port=${PORT:-9622}"
+      - "traefik.http.services.lightrag.loadbalancer.server.port=${PORT}"
 
       # Bind the existing Coolify-generated routers to this service name
       - "traefik.http.routers.http-0-u0sww8c0og0okwos08wk4ogw-lightrag.service=lightrag"
