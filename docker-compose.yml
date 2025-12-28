@@ -1,32 +1,26 @@
-version: "3.9"
-
 services:
   lightrag:
-    container_name: ${COOLIFY_CONTAINER_NAME:-lightrag}
+    container_name: lightrag
+    image: ghcr.io/hkuds/lightrag:latest
     build:
       context: .
       dockerfile: Dockerfile
-
+      tags:
+        - ghcr.io/hkuds/lightrag:latest
     ports:
-      - "${PORT}:${PORT}"
-    expose:
-      - "${PORT}"
-
+      - "${PORT:-9621}:9621"
+    volumes:
+      - ./data/rag_storage:/app/data/rag_storage
+      - ./data/inputs:/app/data/inputs
+      - ./config.ini:/app/config.ini
+      - ./.env:/app/.env
     env_file:
       - .env
-
-    environment:
-      PORT: "${PORT}"
-
-    volumes:
-      - ./data/rag_storage:/app/rag_storage
-      - ./data/inputs:/app/inputs
-      - ./config.ini:/app/config.ini:ro
-
     restart: unless-stopped
-
     extra_hosts:
       - "host.docker.internal:host-gateway"
+
+   
 
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; import os; port=os.getenv('PORT'); urllib.request.urlopen(f'http://127.0.0.1:{port}/health', timeout=2).read()"]
@@ -41,9 +35,4 @@ services:
       # Tell Traefik which internal port to use (the missing piece causing 502)
       - "traefik.http.services.lightrag.loadbalancer.server.port=${PORT}"
 
-      # Bind the existing Coolify-generated routers to this service name
-      - "traefik.http.routers.http-0-u0sww8c0og0okwos08wk4ogw-lightrag.service=lightrag"
-      - "traefik.http.routers.https-0-u0sww8c0og0okwos08wk4ogw-lightrag.service=lightrag"
 
-      # Optional but safe: force Traefik to use the correct network
-      - "traefik.docker.network=u0sww8c0og0okwos08wk4ogw"
