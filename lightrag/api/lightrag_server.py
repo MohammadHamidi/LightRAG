@@ -4,7 +4,7 @@ LightRAG FastAPI Server
 
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from fastapi.openapi.docs import (
     get_swagger_ui_html,
     get_swagger_ui_oauth2_redirect_html,
@@ -1122,7 +1122,7 @@ def create_app(args):
         """OAuth2 redirect for Swagger UI"""
         return get_swagger_ui_oauth2_redirect_html()
 
-    @app.get("/")
+    @app.api_route("/", methods=["GET", "HEAD"])
     async def redirect_to_webui():
         """Redirect root path based on WebUI availability"""
         if webui_assets_exist:
@@ -1195,8 +1195,9 @@ def create_app(args):
             "webui_description": webui_description,
         }
 
-    @app.get(
+    @app.api_route(
         "/health",
+        methods=["GET", "HEAD"],
         dependencies=[Depends(combined_auth)],
         summary="Get system health and configuration status",
         description="Returns comprehensive system status including WebUI availability, configuration, and operational metrics",
@@ -1351,6 +1352,20 @@ def create_app(args):
             name="webui",
         )
         logger.info("WebUI assets mounted at /webui")
+
+        # Serve favicon.ico from webui directory
+        @app.api_route("/favicon.ico", methods=["GET", "HEAD"])
+        async def favicon():
+            """Serve favicon.ico from webui directory"""
+            favicon_path = static_dir / "favicon.png"  # Try favicon.png first
+            if not favicon_path.exists():
+                favicon_path = static_dir / "favicon.ico"  # Fallback to favicon.ico
+            if favicon_path.exists():
+                return FileResponse(favicon_path, media_type="image/png")
+            else:
+                # Return 404 if no favicon found
+                raise HTTPException(status_code=404, detail="Favicon not found")
+
     else:
         logger.info("WebUI assets not available, /webui route not mounted")
 
