@@ -1,38 +1,39 @@
+version: "3.9"
+
 services:
   lightrag:
-    container_name: lightrag
-    image: ghcr.io/hkuds/lightrag:latest
+    container_name: ${COOLIFY_CONTAINER_NAME:-lightrag}
     build:
       context: .
       dockerfile: Dockerfile
-      tags:
-        - ghcr.io/hkuds/lightrag:latest
+
     ports:
-      - "${PORT:-9621}:9621"
-    volumes:
-      - ./data/rag_storage:/app/data/rag_storage
-      - ./data/inputs:/app/data/inputs
-      - ./config.ini:/app/config.ini
-      - ./.env:/app/.env
+      - "${PORT}:${PORT}"
+    expose:
+      - "${PORT}"
+
     env_file:
       - .env
+
+    environment:
+      PORT: "${PORT}"
+
+    volumes:
+      - ./data/rag_storage:/app/rag_storage
+      - ./data/inputs:/app/inputs
+      - ./config.ini:/app/config.ini:ro
+
     restart: unless-stopped
+
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
-   
-
     healthcheck:
+      disable: true # TODO: Enable healthcheck
+      port: "${PORT:-9621}"
       test: ["CMD", "python", "-c", "import urllib.request; import os; port=os.getenv('PORT'); urllib.request.urlopen(f'http://127.0.0.1:{port}/health', timeout=2).read()"]
       interval: 30s
       timeout: 5s
       retries: 5
       start_period: 30s
-
-    labels:
-      - "traefik.enable=true"
-
-      # Tell Traefik which internal port to use (the missing piece causing 502)
-      - "traefik.http.services.lightrag.loadbalancer.server.port=${PORT}"
-
 

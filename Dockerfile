@@ -26,9 +26,9 @@ WORKDIR /app
 # Install system deps (Rust is required by some wheels)
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        curl \
-        build-essential \
-        pkg-config \
+    curl \
+    build-essential \
+    pkg-config \
     && rm -rf /var/lib/apt/lists/* \
     && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 
@@ -102,6 +102,6 @@ ENV WORKING_DIR=/app/data/rag_storage
 ENV INPUT_DIR=/app/data/inputs
 
 # Expose API port
-EXPOSE 9621
+EXPOSE ${PORT:-9621}
 
 ENTRYPOINT ["python", "-m", "lightrag.api.lightrag_server"]
